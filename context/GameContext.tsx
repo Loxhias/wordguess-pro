@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import { useMagicWebhook, MagicWebhookHelpers } from '@/hooks/use-magic-webhook'
+import { useIncomingWebhooks } from '@/hooks/use-incoming-webhooks'
+import { getAllWords } from '@/lib/words'
 import type { Player, Winner, GameState, GameConfig } from '@/types/game'
 
 interface GameContextType {
@@ -47,10 +49,11 @@ const STORAGE_KEYS = {
 
 export function GameProvider({ children }: { children: ReactNode }) {
   // ============================================
-  // WEBHOOKS (CLIENT-SIDE SALIENTES)
+  // WEBHOOKS
   // ============================================
   
   const { sendWebhook, isEnabled: webhookEnabled } = useMagicWebhook()
+  const { guesses, events, markProcessed } = useIncomingWebhooks(true)
 
   // ============================================
   // STATE
@@ -317,6 +320,57 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setGameState((prev) => ({ ...prev, doublePointsActive: false }))
     }
   }, [gameState.doublePointsActive, gameState.doublePointsUntil])
+
+  // Process incoming webhooks (guesses)
+  useEffect(() => {
+    if (guesses.length === 0) return
+
+    guesses.forEach((guess) => {
+      const normalizedGuess = guess.word.toUpperCase().trim()
+      const currentWord = gameState.currentWord.toUpperCase().trim()
+
+      if (normalizedGuess === currentWord && gameState.isRunning) {
+        // ¡Palabra correcta!
+        const points = gameState.doublePointsActive ? 200 : 100
+        addPoints(guess.user, points)
+        endRound(true, guess.user, points)
+      }
+
+      // Mark as processed
+      markProcessed(guess.id)
+    })
+  }, [guesses, gameState.currentWord, gameState.isRunning, gameState.doublePointsActive, addPoints, endRound, markProcessed])
+
+  // Process incoming webhooks (events)
+  useEffect(() => {
+    if (events.length === 0) return
+
+    events.forEach((event) => {
+      switch (event.event) {
+        case 'reveal_letter':
+          if (gameState.isRunning) {
+            revealRandomLetter()
+          }
+          break
+        case 'double_points':
+          if (gameState.isRunning) {
+            const duration = event.duration || config.doublePointsDuration
+            activateDoublePoints(duration)
+          }
+          break
+        case 'nueva_ronda':
+          const allWords = getAllWords()
+          if (allWords.length > 0) {
+            const randomWord = allWords[Math.floor(Math.random() * allWords.length)]
+            startNewRound(randomWord.word, randomWord.hint)
+          }
+          break
+      }
+
+      // Mark as processed
+      markProcessed(event.id)
+    })
+  }, [events, gameState.isRunning, config.doublePointsDuration, revealRandomLetter, activateDoublePoints, startNewRound, markProcessed])
 
   // ============================================
   // CONTEXT VALUE

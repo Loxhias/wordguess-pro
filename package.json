@@ -3,12 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-  "dev": "cross-env PORT=7777 next dev",
-  "build": "next build",
-  "start": "cross-env PORT=7777 next start",
-  "lint": "eslint ."
-}
-,
+    "dev": "cross-env PORT=7777 next dev",
+    "build": "next build",
+    "start": "cross-env PORT=7777 next start",
+    "lint": "eslint ."
+  },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
@@ -64,6 +63,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260120.0",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/node": "^22",
     "@types/react": "^19",

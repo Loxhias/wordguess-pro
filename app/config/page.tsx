@@ -23,6 +23,33 @@ function ConfigContent() {
   const [newWord, setNewWord] = useState({ word: '', hint: '' })
   const [saved, setSaved] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
+  const [copiedWebhook, setCopiedWebhook] = useState<string | null>(null)
+
+  // Get current deployment URL
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:7777'
+
+  const incomingWebhooks = [
+    {
+      name: 'Adivinar Palabra',
+      url: `${baseUrl}/api/guess?user={username}&word={comment}`,
+      description: 'Envía el intento de un usuario. Reemplaza {username} con el nombre y {comment} con la palabra.'
+    },
+    {
+      name: 'Revelar Letra',
+      url: `${baseUrl}/api/event?user={username}&event=reveal_letter`,
+      description: 'Revela una letra aleatoria. Reemplaza {username} con el nombre del usuario.'
+    },
+    {
+      name: 'Puntos Dobles',
+      url: `${baseUrl}/api/event?user={username}&event=double_points&duration=30`,
+      description: 'Activa puntos dobles por X segundos (duration).'
+    },
+    {
+      name: 'Nueva Ronda',
+      url: `${baseUrl}/api/event?user={username}&event=nueva_ronda`,
+      description: 'Inicia una nueva ronda con una palabra aleatoria.'
+    }
+  ]
 
   useEffect(() => {
     setWords(getAllWords())
@@ -52,6 +79,12 @@ function ConfigContent() {
     localStorage.setItem('wordguess_webhook_url', webhookUrl)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const copyWebhook = (url: string, name: string) => {
+    navigator.clipboard.writeText(url)
+    setCopiedWebhook(name)
+    setTimeout(() => setCopiedWebhook(null), 2000)
   }
 
   const themeColors = {
@@ -157,22 +190,22 @@ function ConfigContent() {
           </CardContent>
         </Card>
 
-        {/* Webhook Configuration */}
+        {/* Outgoing Webhook Configuration */}
         <Card className={`border-purple-500/30 bg-slate-900/50 backdrop-blur-xl mb-6 ${theme === 'minimal' ? 'bg-white/90' : ''}`}>
           <CardHeader>
             <CardTitle className={`flex items-center gap-2 ${theme === 'minimal' ? 'text-slate-900' : 'text-white'}`}>
               <Webhook className="w-5 h-5" />
-              {t('outgoingWebhook')}
+              📤 Webhook Saliente (Outgoing)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className={`text-sm ${theme === 'minimal' ? 'text-slate-600' : 'text-slate-400'}`}>
-              {t('outgoingDescription')}
+              El juego enviará eventos a esta URL cuando ocurran acciones importantes.
             </p>
             
             <div>
               <Label className={`mb-2 block ${theme === 'minimal' ? 'text-slate-700' : 'text-slate-300'}`}>
-                {t('webhookUrl')}
+                URL del Webhook
               </Label>
               <div className="flex gap-2">
                 <Input
@@ -188,7 +221,65 @@ function ConfigContent() {
                 </Button>
               </div>
               <p className={`text-xs mt-2 ${theme === 'minimal' ? 'text-slate-500' : 'text-slate-500'}`}>
-                💡 El juego enviará eventos aquí (GAME_WIN, ROUND_END, LETTER_REVEALED, etc.)
+                💡 Eventos: GAME_WIN, ROUND_END, LETTER_REVEALED, ROUND_START, DOUBLE_POINTS, TIMER_WARNING
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Incoming Webhooks */}
+        <Card className={`border-purple-500/30 bg-slate-900/50 backdrop-blur-xl mb-6 ${theme === 'minimal' ? 'bg-white/90' : ''}`}>
+          <CardHeader>
+            <CardTitle className={`flex items-center gap-2 ${theme === 'minimal' ? 'text-slate-900' : 'text-white'}`}>
+              <Webhook className="w-5 h-5" />
+              📥 Webhooks Entrantes (Incoming)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className={`text-sm ${theme === 'minimal' ? 'text-slate-600' : 'text-slate-400'}`}>
+              Usa estas URLs para enviar acciones al juego desde aplicaciones externas (OBS, Streamlabs, etc.)
+            </p>
+
+            <div className="space-y-3">
+              {incomingWebhooks.map((webhook) => (
+                <div
+                  key={webhook.name}
+                  className={`p-4 rounded-lg border ${
+                    theme === 'minimal'
+                      ? 'bg-white border-slate-200'
+                      : 'bg-slate-800/30 border-slate-700'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className={`font-semibold ${theme === 'minimal' ? 'text-slate-900' : 'text-white'}`}>
+                      {webhook.name}
+                    </h4>
+                    <Button
+                      onClick={() => copyWebhook(webhook.url, webhook.name)}
+                      size="sm"
+                      variant="ghost"
+                      className={copiedWebhook === webhook.name ? 'text-green-400' : 'text-purple-400'}
+                    >
+                      {copiedWebhook === webhook.name ? '✓ Copiado' : '📋 Copiar'}
+                    </Button>
+                  </div>
+                  <p className={`text-xs mb-2 ${theme === 'minimal' ? 'text-slate-600' : 'text-slate-400'}`}>
+                    {webhook.description}
+                  </p>
+                  <code className={`block p-2 rounded text-xs overflow-x-auto ${
+                    theme === 'minimal'
+                      ? 'bg-slate-100 text-slate-800'
+                      : 'bg-slate-900/50 text-purple-300'
+                  }`}>
+                    {webhook.url}
+                  </code>
+                </div>
+              ))}
+            </div>
+
+            <div className={`p-4 rounded-lg ${theme === 'minimal' ? 'bg-blue-50 border border-blue-200' : 'bg-blue-900/20 border border-blue-500/30'}`}>
+              <p className={`text-sm ${theme === 'minimal' ? 'text-blue-900' : 'text-blue-300'}`}>
+                💡 <strong>Tip:</strong> Reemplaza <code>{'{username}'}</code> con el nombre del usuario y <code>{'{comment}'}</code> con la palabra a adivinar.
               </p>
             </div>
           </CardContent>
