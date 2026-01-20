@@ -2,45 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import { useMagicWebhook, MagicWebhookHelpers } from '@/hooks/use-magic-webhook'
-
-// ============================================
-// INTERFACES
-// ============================================
-
-export interface Player {
-  name: string
-  points: number
-  lastUpdated: number
-}
-
-export interface Winner {
-  playerName: string
-  timestamp: number
-  points: number
-}
-
-export interface GameState {
-  currentWord: string
-  currentHint: string
-  revealedIndices: number[]
-  isActive: boolean
-  startTime: number
-  duration: number
-  timeLeft: number
-  isRunning: boolean
-  isFinished: boolean
-  doublePointsActive: boolean
-  doublePointsUntil: number
-  winners: Winner[]
-  winner: string | null
-  winnerPoints: number
-}
-
-export interface GameConfig {
-  roundDuration: number
-  revealInterval: number
-  doublePointsDuration: number
-}
+import type { Player, Winner, GameState, GameConfig } from '@/types/game'
 
 interface GameContextType {
   // State

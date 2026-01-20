@@ -1,24 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from 'react'
-
-/**
- * Magic Webhook Events
- * Eventos que se pueden enviar al webhook de Magic By Loxhias
- */
-export type MagicWebhookEvent =
-  | 'GAME_WIN'           // Cuando alguien adivina la palabra
-  | 'ROUND_END'          // Cuando el tiempo se agota sin ganador
-  | 'LETTER_REVEALED'    // Cuando se revela una letra
-  | 'ROUND_START'        // Cuando inicia una nueva ronda
-  | 'DOUBLE_POINTS'      // Cuando se activan puntos dobles
-  | 'TIMER_WARNING'      // Cuando quedan 10 segundos
-
-interface WebhookPayload {
-  event: MagicWebhookEvent
-  timestamp: number
-  data: Record<string, any>
-}
+import type { MagicWebhookEvent, WebhookPayload } from '@/types/game'
 
 /**
  * Hook para integración con Magic By Loxhias via Webhooks

@@ -5,12 +5,7 @@
  * Los usuarios pueden agregar más palabras desde la interfaz de configuración.
  */
 
-export interface WordEntry {
-  word: string
-  hint: string
-  difficulty?: 'easy' | 'medium' | 'hard'
-  category?: string
-}
+import type { WordEntry } from '@/types/game'
 
 export const DEFAULT_WORDS: WordEntry[] = [
   // Programming
