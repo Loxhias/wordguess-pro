@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // No usar 'export' - Cloudflare Pages soporta Next.js completo con API Routes
+  output: 'export',
   images: {
     unoptimized: true,
   },

@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import { useMagicWebhook, MagicWebhookHelpers } from '@/hooks/use-magic-webhook'
-import { useIncomingWebhooks } from '@/hooks/use-incoming-webhooks'
 import type { Player, Winner, GameState, GameConfig } from '@/types/game'
 
 interface GameContextType {
@@ -48,11 +47,10 @@ const STORAGE_KEYS = {
 
 export function GameProvider({ children }: { children: ReactNode }) {
   // ============================================
-  // WEBHOOKS
+  // WEBHOOKS (CLIENT-SIDE SALIENTES)
   // ============================================
   
   const { sendWebhook, isEnabled: webhookEnabled } = useMagicWebhook()
-  const { guesses, events, markProcessed } = useIncomingWebhooks(true)
 
   // ============================================
   // STATE
@@ -319,61 +317,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setGameState((prev) => ({ ...prev, doublePointsActive: false }))
     }
   }, [gameState.doublePointsActive, gameState.doublePointsUntil])
-
-  // ============================================
-  // PROCESS INCOMING WEBHOOKS
-  // ============================================
-
-  // Process guesses
-  useEffect(() => {
-    if (!gameState.isActive || !gameState.currentWord || gameState.isFinished) return
-
-    guesses.forEach((guess) => {
-      // Check if word matches
-      if (guess.word === gameState.currentWord) {
-        // Calculate points
-        const basePoints = 10
-        const multiplier = gameState.doublePointsActive ? 2 : 1
-        const points = basePoints * multiplier
-
-        // Add winner
-        addWinner(guess.user, points)
-        addPoints(guess.user, points)
-
-        // End round
-        endRound(true, guess.user, points)
-
-        // Mark as processed
-        markProcessed(guess.id)
-      } else {
-        // Wrong guess - just mark as processed
-        markProcessed(guess.id)
-      }
-    })
-  }, [guesses, gameState.isActive, gameState.currentWord, gameState.isFinished, gameState.doublePointsActive, addWinner, addPoints, endRound, markProcessed])
-
-  // Process events
-  useEffect(() => {
-    events.forEach((event) => {
-      switch (event.event) {
-        case 'reveal_letter':
-          if (gameState.isActive && !gameState.isFinished) {
-            revealRandomLetter()
-          }
-          break
-        case 'double_points':
-          if (gameState.isActive && !gameState.isFinished) {
-            activateDoublePoints(event.duration || 30)
-          }
-          break
-        case 'nueva_ronda':
-          // New round will be handled by the UI
-          break
-      }
-      // Mark as processed
-      markProcessed(event.id)
-    })
-  }, [events, gameState.isActive, gameState.isFinished, revealRandomLetter, activateDoublePoints, markProcessed])
 
   // ============================================
   // CONTEXT VALUE

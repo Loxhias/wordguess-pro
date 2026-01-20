@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, Save, Plus, Trash2, Palette, Globe, Copy, Check, Webhook } from "lucide-react"
+import { ArrowLeft, Save, Plus, Trash2, Palette, Globe, Webhook } from "lucide-react"
 import { GameProvider, useGame } from "@/context/GameContext"
 import { getAllWords, saveCustomWords } from "@/lib/words"
 import { useTheme } from "@/hooks/use-theme"
@@ -22,20 +22,14 @@ function ConfigContent() {
   const [words, setWords] = useState<WordEntry[]>([])
   const [newWord, setNewWord] = useState({ word: '', hint: '' })
   const [saved, setSaved] = useState(false)
-  const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null)
   const [webhookUrl, setWebhookUrl] = useState('')
-  const [authToken, setAuthToken] = useState('')
-  
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://wordguess-pro.pages.dev'
 
   useEffect(() => {
     setWords(getAllWords())
     
-    // Load webhook config
+    // Load webhook URL
     const savedWebhook = localStorage.getItem('wordguess_webhook_url')
-    const savedToken = localStorage.getItem('wordguess_auth_token')
     if (savedWebhook) setWebhookUrl(savedWebhook)
-    if (savedToken) setAuthToken(savedToken)
   }, [])
 
   const handleSave = () => {
@@ -52,20 +46,6 @@ function ConfigContent() {
 
   const handleDelete = (index: number) => {
     setWords(words.filter((_, i) => i !== index))
-  }
-
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedEndpoint(id)
-    setTimeout(() => setCopiedEndpoint(null), 2000)
-  }
-
-  const generateToken = () => {
-    const token = Array.from({ length: 32 }, () => 
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]
-    ).join('')
-    setAuthToken(token)
-    localStorage.setItem('wordguess_auth_token', token)
   }
 
   const saveWebhookUrl = () => {
@@ -177,112 +157,23 @@ function ConfigContent() {
           </CardContent>
         </Card>
 
-        {/* Webhook Endpoints */}
+        {/* Webhook Configuration */}
         <Card className={`border-purple-500/30 bg-slate-900/50 backdrop-blur-xl mb-6 ${theme === 'minimal' ? 'bg-white/90' : ''}`}>
           <CardHeader>
             <CardTitle className={`flex items-center gap-2 ${theme === 'minimal' ? 'text-slate-900' : 'text-white'}`}>
               <Webhook className="w-5 h-5" />
-              {t('webhookEndpoints')}
+              {t('outgoingWebhook')}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             <p className={`text-sm ${theme === 'minimal' ? 'text-slate-600' : 'text-slate-400'}`}>
-              {t('webhookDescription')}
+              {t('outgoingDescription')}
             </p>
-
-            {/* Incoming Webhooks */}
+            
             <div>
-              <h3 className={`text-lg font-semibold mb-3 ${theme === 'minimal' ? 'text-slate-900' : 'text-white'}`}>
-                📥 {t('incomingWebhooks')}
-              </h3>
-              
-              <div className="space-y-3">
-                {/* Intento de palabra */}
-                <div className={`p-3 rounded-lg border ${theme === 'minimal' ? 'bg-slate-50 border-slate-200' : 'bg-slate-800/30 border-slate-700'}`}>
-                  <p className={`text-sm font-semibold mb-2 ${theme === 'minimal' ? 'text-slate-700' : 'text-slate-300'}`}>
-                    💬 {t('guessEndpoint')}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code className={`flex-1 p-2 rounded text-xs break-all ${theme === 'minimal' ? 'bg-slate-100 text-slate-900' : 'bg-slate-900 text-green-400'}`}>
-                      {baseUrl}/api/guess?user=<span className="text-yellow-400">{'{'} username{'}'}</span>&word=<span className="text-yellow-400">{'{'} comment{'}'}</span>
-                    </code>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(`${baseUrl}/api/guess?user={username}&word={comment}`, 'guess')}
-                    >
-                      {copiedEndpoint === 'guess' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Revelar letra */}
-                <div className={`p-3 rounded-lg border ${theme === 'minimal' ? 'bg-slate-50 border-slate-200' : 'bg-slate-800/30 border-slate-700'}`}>
-                  <p className={`text-sm font-semibold mb-2 ${theme === 'minimal' ? 'text-slate-700' : 'text-slate-300'}`}>
-                    👁️ {t('revealLetterEvent')}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code className={`flex-1 p-2 rounded text-xs break-all ${theme === 'minimal' ? 'bg-slate-100 text-slate-900' : 'bg-slate-900 text-green-400'}`}>
-                      {baseUrl}/api/event?user=<span className="text-yellow-400">{'{'} username{'}'}</span>&event=reveal_letter
-                    </code>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(`${baseUrl}/api/event?user={username}&event=reveal_letter`, 'reveal')}
-                    >
-                      {copiedEndpoint === 'reveal' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Doble puntos */}
-                <div className={`p-3 rounded-lg border ${theme === 'minimal' ? 'bg-slate-50 border-slate-200' : 'bg-slate-800/30 border-slate-700'}`}>
-                  <p className={`text-sm font-semibold mb-2 ${theme === 'minimal' ? 'text-slate-700' : 'text-slate-300'}`}>
-                    🔥 {t('doublePointsEvent')}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code className={`flex-1 p-2 rounded text-xs break-all ${theme === 'minimal' ? 'bg-slate-100 text-slate-900' : 'bg-slate-900 text-green-400'}`}>
-                      {baseUrl}/api/event?user=<span className="text-yellow-400">{'{'} username{'}'}</span>&event=double_points&duration=30
-                    </code>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(`${baseUrl}/api/event?user={username}&event=double_points&duration=30`, 'double')}
-                    >
-                      {copiedEndpoint === 'double' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Nueva ronda */}
-                <div className={`p-3 rounded-lg border ${theme === 'minimal' ? 'bg-slate-50 border-slate-200' : 'bg-slate-800/30 border-slate-700'}`}>
-                  <p className={`text-sm font-semibold mb-2 ${theme === 'minimal' ? 'text-slate-700' : 'text-slate-300'}`}>
-                    🎮 {t('newRoundEvent')}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code className={`flex-1 p-2 rounded text-xs break-all ${theme === 'minimal' ? 'bg-slate-100 text-slate-900' : 'bg-slate-900 text-green-400'}`}>
-                      {baseUrl}/api/event?user=<span className="text-yellow-400">{'{'} username{'}'}</span>&event=nueva_ronda
-                    </code>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(`${baseUrl}/api/event?user={username}&event=nueva_ronda`, 'newround')}
-                    >
-                      {copiedEndpoint === 'newround' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Outgoing Webhook */}
-            <div>
-              <h3 className={`text-lg font-semibold mb-3 ${theme === 'minimal' ? 'text-slate-900' : 'text-white'}`}>
-                📤 {t('outgoingWebhook')} ({t('optional')})
-              </h3>
-              <p className={`text-sm mb-3 ${theme === 'minimal' ? 'text-slate-600' : 'text-slate-400'}`}>
-                {t('outgoingDescription')}
-              </p>
+              <Label className={`mb-2 block ${theme === 'minimal' ? 'text-slate-700' : 'text-slate-300'}`}>
+                {t('webhookUrl')}
+              </Label>
               <div className="flex gap-2">
                 <Input
                   type="url"
@@ -296,37 +187,9 @@ function ConfigContent() {
                   {saved ? t('saved') : t('save')}
                 </Button>
               </div>
-            </div>
-
-            {/* Auth Token */}
-            <div>
-              <h3 className={`text-lg font-semibold mb-3 ${theme === 'minimal' ? 'text-slate-900' : 'text-white'}`}>
-                🔒 {t('authToken')}
-              </h3>
-              <div className="flex gap-2">
-                <Input
-                  type="text"
-                  value={authToken}
-                  onChange={(e) => setAuthToken(e.target.value)}
-                  placeholder="Click generate to create a secure token"
-                  className={`flex-1 font-mono text-sm ${theme === 'minimal' ? 'bg-white border-slate-300' : 'bg-slate-800 border-purple-500/30 text-white'}`}
-                />
-                <Button onClick={generateToken} variant="outline">
-                  {t('generateToken')}
-                </Button>
-                {authToken && (
-                  <Button
-                    variant="outline"
-                    onClick={() => copyToClipboard(authToken, 'token')}
-                  >
-                    {copiedEndpoint === 'token' ? (
-                      <><Check className="w-4 h-4" /></>
-                    ) : (
-                      <><Copy className="w-4 h-4" /></>
-                    )}
-                  </Button>
-                )}
-              </div>
+              <p className={`text-xs mt-2 ${theme === 'minimal' ? 'text-slate-500' : 'text-slate-500'}`}>
+                💡 El juego enviará eventos aquí (GAME_WIN, ROUND_END, LETTER_REVEALED, etc.)
+              </p>
             </div>
           </CardContent>
         </Card>
