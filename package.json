@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-  "dev": "cross-env PORT=3015 next dev",
-  "build": "next build",
-  "start": "cross-env PORT=3015 next start",
+  "dev": "cross-env PORT=7777 next dev",
+  "build": "cross-env BUILD_STATIC=true next build",
+  "build:dev": "next build",
+  "start": "cross-env PORT=7777 next start",
   "lint": "eslint ."
 }
 ,
