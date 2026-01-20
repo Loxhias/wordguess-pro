@@ -31,7 +31,14 @@ export function useIncomingWebhooks(enabled: boolean = true) {
 
   useEffect(() => {
     // Only enable in production (Cloudflare) where Functions are available
-    setIsProduction(typeof window !== 'undefined' && window.location.hostname !== 'localhost')
+    const isProd = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    setIsProduction(isProd)
+    
+    if (isProd) {
+      console.log('✅ [Polling] Activado en producción (' + window.location.hostname + ')')
+    } else {
+      console.log('⏸️ [Polling] Desactivado en localhost (solo funciona en Cloudflare)')
+    }
   }, [])
 
   const fetchPending = useCallback(async () => {
@@ -44,6 +51,16 @@ export function useIncomingWebhooks(enabled: boolean = true) {
       })
       if (response.ok) {
         const data: PendingData = await response.json()
+        
+        // Log solo cuando hay datos nuevos
+        if (data.guesses?.length > 0 || data.events?.length > 0) {
+          console.log('📥 [Polling] Webhooks recibidos:', {
+            guesses: data.guesses?.length || 0,
+            events: data.events?.length || 0,
+            data
+          })
+        }
+        
         setGuesses(data.guesses || [])
         setEvents(data.events || [])
       }

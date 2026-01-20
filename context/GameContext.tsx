@@ -345,32 +345,59 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (events.length === 0) return
 
+    console.log('🔔 [Webhook] Eventos recibidos:', events)
+
     events.forEach((event) => {
+      console.log('🎯 [Webhook] Procesando evento:', event.event, 'Usuario:', event.user)
+
       switch (event.event) {
         case 'reveal_letter':
-          if (gameState.isRunning) {
+          // Permitir revelar incluso si no hay ronda activa (iniciará una si es necesario)
+          if (gameState.isRunning && gameState.currentWord) {
+            console.log('✅ [Webhook] Revelando letra...')
             revealRandomLetter()
+          } else if (!gameState.isRunning) {
+            console.warn('⚠️ [Webhook] No hay ronda activa. Usa /api/event?event=nueva_ronda primero')
+            // Auto-iniciar ronda si hay palabras
+            const allWords = getAllWords()
+            if (allWords.length > 0) {
+              const randomWord = allWords[Math.floor(Math.random() * allWords.length)]
+              console.log('🚀 [Webhook] Auto-iniciando ronda con palabra:', randomWord.word)
+              startNewRound(randomWord.word, randomWord.hint)
+              // Revelar después de 500ms
+              setTimeout(() => revealRandomLetter(), 500)
+            } else {
+              console.error('❌ [Webhook] No hay palabras configuradas en /config')
+            }
           }
           break
         case 'double_points':
           if (gameState.isRunning) {
             const duration = event.duration || config.doublePointsDuration
+            console.log('✅ [Webhook] Activando puntos dobles por', duration, 'segundos')
             activateDoublePoints(duration)
+          } else {
+            console.warn('⚠️ [Webhook] No hay ronda activa para activar puntos dobles')
           }
           break
         case 'nueva_ronda':
           const allWords = getAllWords()
           if (allWords.length > 0) {
             const randomWord = allWords[Math.floor(Math.random() * allWords.length)]
+            console.log('✅ [Webhook] Iniciando nueva ronda con:', randomWord.word)
             startNewRound(randomWord.word, randomWord.hint)
+          } else {
+            console.error('❌ [Webhook] No hay palabras configuradas en /config')
           }
           break
+        default:
+          console.warn('⚠️ [Webhook] Evento desconocido:', event.event)
       }
 
       // Mark as processed
       markProcessed(event.id)
     })
-  }, [events, gameState.isRunning, config.doublePointsDuration, revealRandomLetter, activateDoublePoints, startNewRound, markProcessed])
+  }, [events, gameState.isRunning, gameState.currentWord, config.doublePointsDuration, revealRandomLetter, activateDoublePoints, startNewRound, markProcessed])
 
   // ============================================
   // CONTEXT VALUE
