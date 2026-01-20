@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import type { Language } from "@/lib/i18n/translations"
-import { getTranslation } from "@/lib/i18n/translations"
+import { getTranslation, translations } from "@/lib/i18n/translations"
 
 export function useLanguage() {
   const [language, setLanguage] = useState<Language>("en")
@@ -15,7 +15,7 @@ export function useLanguage() {
     }
   }, [])
 
-  const t = (key: keyof ReturnType<typeof getTranslation>) => {
+  const t = (key: keyof (typeof translations)["en"]) => {
     return getTranslation(language, key)
   }
 

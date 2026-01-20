@@ -82,101 +82,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   })
 
   // ============================================
-  // LOAD FROM LOCALSTORAGE
-  // ============================================
-
-  useEffect(() => {
-    // Load players
-    const savedPlayers = localStorage.getItem(STORAGE_KEYS.PLAYERS)
-    if (savedPlayers) {
-      try {
-        setPlayers(JSON.parse(savedPlayers))
-      } catch (error) {
-        console.error('Error loading players:', error)
-      }
-    }
-
-    // Load config
-    const savedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG)
-    if (savedConfig) {
-      try {
-        const parsedConfig = JSON.parse(savedConfig)
-        setConfig({
-          roundDuration: parsedConfig.roundDuration || 180,
-          revealInterval: parsedConfig.revealInterval || 15,
-          doublePointsDuration: parsedConfig.doublePointsDuration || 30,
-        })
-      } catch (error) {
-        console.error('Error loading config:', error)
-      }
-    }
-  }, [])
-
-  // ============================================
-  // SAVE TO LOCALSTORAGE
-  // ============================================
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players))
-  }, [players])
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config))
-  }, [config])
-
-  // ============================================
-  // TIMER LOGIC
-  // ============================================
-
-  useEffect(() => {
-    if (gameState.isRunning && gameState.timeLeft > 0 && !gameState.isFinished) {
-      const timer = setTimeout(() => {
-        setGameState((prev) => {
-          const newTimeLeft = prev.timeLeft - 1
-          
-          // 🔥 WEBHOOK: Advertencia de tiempo (quedan 10 segundos)
-          if (newTimeLeft === 10 && webhookEnabled) {
-            MagicWebhookHelpers.timerWarning(sendWebhook)(10)
-          }
-          
-          return { ...prev, timeLeft: newTimeLeft }
-        })
-      }, 1000)
-      return () => clearTimeout(timer)
-    } else if (gameState.timeLeft === 0 && !gameState.isFinished && gameState.isActive) {
-      // Auto end round when time runs out
-      endRound(false)
-    }
-  }, [gameState.isRunning, gameState.timeLeft, gameState.isFinished, gameState.isActive, webhookEnabled, sendWebhook, endRound])
-
-  // ============================================
-  // AUTO-REVEAL LOGIC
-  // ============================================
-
-  useEffect(() => {
-    if (gameState.isRunning && gameState.currentWord && !gameState.isFinished) {
-      const elapsed = config.roundDuration - gameState.timeLeft
-      const shouldRevealCount = Math.floor(elapsed / config.revealInterval)
-      const currentRevealCount = gameState.revealedIndices.length
-
-      if (shouldRevealCount > currentRevealCount && currentRevealCount < gameState.currentWord.length) {
-        revealRandomLetter()
-      }
-    }
-  }, [gameState.timeLeft, gameState.isRunning, gameState.currentWord, gameState.isFinished, config.roundDuration, config.revealInterval])
-
-  // ============================================
-  // DOUBLE POINTS CHECK
-  // ============================================
-
-  useEffect(() => {
-    if (gameState.doublePointsActive && Date.now() > gameState.doublePointsUntil) {
-      setGameState((prev) => ({ ...prev, doublePointsActive: false }))
-    }
-  }, [gameState.doublePointsActive, gameState.doublePointsUntil])
-
-  // ============================================
-  // GAME ACTIONS
+  // GAME ACTIONS (BEFORE useEffect)
   // ============================================
 
   const startNewRound = useCallback((word?: string, hint?: string) => {
@@ -331,6 +237,86 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const updateConfig = useCallback((newConfig: Partial<GameConfig>) => {
     setConfig((prev) => ({ ...prev, ...newConfig }))
   }, [])
+
+  // ============================================
+  // EFFECTS (AFTER all useCallback)
+  // ============================================
+
+  // Load from localStorage
+  useEffect(() => {
+    const savedPlayers = localStorage.getItem(STORAGE_KEYS.PLAYERS)
+    if (savedPlayers) {
+      try {
+        setPlayers(JSON.parse(savedPlayers))
+      } catch (error) {
+        console.error('Error loading players:', error)
+      }
+    }
+
+    const savedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG)
+    if (savedConfig) {
+      try {
+        const parsedConfig = JSON.parse(savedConfig)
+        setConfig({
+          roundDuration: parsedConfig.roundDuration || 180,
+          revealInterval: parsedConfig.revealInterval || 15,
+          doublePointsDuration: parsedConfig.doublePointsDuration || 30,
+        })
+      } catch (error) {
+        console.error('Error loading config:', error)
+      }
+    }
+  }, [])
+
+  // Save players to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players))
+  }, [players])
+
+  // Save config to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config))
+  }, [config])
+
+  // Timer logic
+  useEffect(() => {
+    if (gameState.isRunning && gameState.timeLeft > 0 && !gameState.isFinished) {
+      const timer = setTimeout(() => {
+        setGameState((prev) => {
+          const newTimeLeft = prev.timeLeft - 1
+          
+          if (newTimeLeft === 10 && webhookEnabled) {
+            MagicWebhookHelpers.timerWarning(sendWebhook)(10)
+          }
+          
+          return { ...prev, timeLeft: newTimeLeft }
+        })
+      }, 1000)
+      return () => clearTimeout(timer)
+    } else if (gameState.timeLeft === 0 && !gameState.isFinished && gameState.isActive) {
+      endRound(false)
+    }
+  }, [gameState.isRunning, gameState.timeLeft, gameState.isFinished, gameState.isActive, webhookEnabled, sendWebhook, endRound])
+
+  // Auto-reveal logic
+  useEffect(() => {
+    if (gameState.isRunning && gameState.currentWord && !gameState.isFinished) {
+      const elapsed = config.roundDuration - gameState.timeLeft
+      const shouldRevealCount = Math.floor(elapsed / config.revealInterval)
+      const currentRevealCount = gameState.revealedIndices.length
+
+      if (shouldRevealCount > currentRevealCount && currentRevealCount < gameState.currentWord.length) {
+        revealRandomLetter()
+      }
+    }
+  }, [gameState.timeLeft, gameState.isRunning, gameState.currentWord, gameState.isFinished, config.roundDuration, config.revealInterval, revealRandomLetter])
+
+  // Double points check
+  useEffect(() => {
+    if (gameState.doublePointsActive && Date.now() > gameState.doublePointsUntil) {
+      setGameState((prev) => ({ ...prev, doublePointsActive: false }))
+    }
+  }, [gameState.doublePointsActive, gameState.doublePointsUntil])
 
   // ============================================
   // CONTEXT VALUE
