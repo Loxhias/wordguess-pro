@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, Play, Pause, Eye, SkipForward, Lightbulb } from "lucide-react"
+import { ArrowLeft, Play, Pause, Eye, SkipForward, Lightbulb, Bug, ChevronDown, ChevronUp, Copy, CheckCircle2 } from "lucide-react"
 import { GameProvider, useGame } from "@/context/GameContext"
-import { getRandomWord } from "@/lib/words"
+import { getRandomWord, getAllWords } from "@/lib/words"
 import { useTheme } from "@/hooks/use-theme"
 import { useLanguage } from "@/hooks/use-language"
+import { useIncomingWebhooks } from "@/hooks/use-incoming-webhooks"
 import { ThemedLetterTile } from "@/components/game/themed-letter-tile"
 import { ThemedTimer } from "@/components/game/themed-timer"
 import { GameModal } from "@/components/game/game-modal"
@@ -20,6 +21,36 @@ function GameContent() {
   const { t } = useLanguage()
   const [modalOpen, setModalOpen] = useState(false)
   const [hintRevealed, setHintRevealed] = useState(false)
+  const [debugOpen, setDebugOpen] = useState(false)
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+  
+  // Webhooks (opcional - solo para streamers)
+  const { guesses, events } = useIncomingWebhooks(true)
+  const [isProduction, setIsProduction] = useState(false)
+  const [webhookLogs, setWebhookLogs] = useState<string[]>([])
+
+  useEffect(() => {
+    const isProd = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    setIsProduction(isProd)
+  }, [])
+
+  useEffect(() => {
+    if (events.length > 0) {
+      setWebhookLogs(prev => [
+        ...prev.slice(-4), // Mantener solo los últimos 5
+        `${new Date().toLocaleTimeString()} - ${events.length} evento(s): ${events.map(e => e.event).join(', ')}`
+      ])
+    }
+  }, [events])
+
+  useEffect(() => {
+    if (guesses.length > 0) {
+      setWebhookLogs(prev => [
+        ...prev.slice(-4),
+        `${new Date().toLocaleTimeString()} - ${guesses.length} intento(s) de adivinanza`
+      ])
+    }
+  }, [guesses])
 
   useEffect(() => {
     if (gameState.isFinished && !modalOpen) {
@@ -50,6 +81,20 @@ function GameContent() {
     minimal: 'from-white via-slate-50 to-slate-100',
     dark: 'from-black via-zinc-950 to-black',
   }
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedUrl(id)
+    setTimeout(() => setCopiedUrl(null), 2000)
+  }
+
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+  const webhookUrls = [
+    { id: 'nueva_ronda', name: 'Nueva Ronda', url: `${baseUrl}/api/event?user={username}&event=nueva_ronda` },
+    { id: 'reveal', name: 'Revelar Letra', url: `${baseUrl}/api/event?user={username}&event=reveal_letter` },
+    { id: 'double', name: 'Puntos Dobles', url: `${baseUrl}/api/event?user={username}&event=double_points&duration=30` },
+    { id: 'guess', name: 'Adivinar', url: `${baseUrl}/api/guess?user={username}&word={palabra}` },
+  ]
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${themeColors[theme]} p-4 transition-colors duration-500`}>
@@ -215,6 +260,155 @@ function GameContent() {
           onClose={() => setModalOpen(false)}
           onNewRound={handleStartRound}
         />
+
+        {/* Debug Panel */}
+        <div className="fixed bottom-0 left-0 right-0 z-50">
+          {!debugOpen ? (
+            <div className="flex justify-center pb-4">
+              <Button
+                onClick={() => setDebugOpen(true)}
+                size="sm"
+                className="bg-slate-800/90 hover:bg-slate-700 text-slate-300 backdrop-blur-sm"
+              >
+                <Bug className="w-4 h-4 mr-2" />
+                Debug Panel
+                <ChevronUp className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          ) : (
+            <Card className="border-t-2 border-purple-500/50 bg-slate-900/95 backdrop-blur-xl rounded-t-xl rounded-b-none">
+              <CardContent className="p-4 space-y-4">
+                {/* Header */}
+                <div className="flex justify-between items-center border-b border-slate-700 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Bug className="w-5 h-5 text-purple-400" />
+                    <h3 className="text-white font-semibold">Debug Panel - Estado del Juego</h3>
+                  </div>
+                  <Button
+                    onClick={() => setDebugOpen(false)}
+                    size="sm"
+                    variant="ghost"
+                    className="text-slate-400 hover:text-white"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                {/* Status Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {/* Local Storage */}
+                  <div className="bg-slate-800/50 rounded-lg p-3">
+                    <div className="text-xs text-slate-400 mb-1">💾 Almacenamiento</div>
+                    <div className="text-sm font-semibold text-green-400">Local (Navegador)</div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {getAllWords().length} palabras
+                    </div>
+                  </div>
+
+                  {/* Game Status */}
+                  <div className="bg-slate-800/50 rounded-lg p-3">
+                    <div className="text-xs text-slate-400 mb-1">🎮 Estado</div>
+                    <div className={`text-sm font-semibold ${gameState.isRunning ? 'text-green-400' : 'text-yellow-400'}`}>
+                      {gameState.isRunning ? 'Jugando' : 'En pausa'}
+                    </div>
+                    {gameState.currentWord && (
+                      <div className="text-xs text-slate-500 mt-1">
+                        {gameState.revealedIndices.length}/{gameState.currentWord.length} letras
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Players */}
+                  <div className="bg-slate-800/50 rounded-lg p-3">
+                    <div className="text-xs text-slate-400 mb-1">👥 Jugadores</div>
+                    <div className="text-sm font-semibold text-purple-400">
+                      {players.length} en ranking
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {players.length > 0 ? `Top: ${players[0].name}` : 'Sin jugadores'}
+                    </div>
+                  </div>
+
+                  {/* Webhooks Status */}
+                  <div className="bg-slate-800/50 rounded-lg p-3">
+                    <div className="text-xs text-slate-400 mb-1">🔗 Webhooks</div>
+                    <div className={`text-sm font-semibold ${isProduction ? 'text-green-400' : 'text-slate-500'}`}>
+                      {isProduction ? 'Activados' : 'Desactivados'}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {isProduction ? 'Producción' : 'Solo local'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Webhooks Section (solo si está en producción) */}
+                {isProduction && (
+                  <div className="border-t border-slate-700 pt-3">
+                    <div className="text-sm text-slate-300 mb-3 flex items-center gap-2">
+                      <span className="text-yellow-400">⚡</span>
+                      <span className="font-semibold">Webhooks Entrantes</span>
+                      <span className="text-xs text-slate-500">(Opcional - Para Streamers)</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+                      {webhookUrls.map((webhook) => (
+                        <div key={webhook.id} className="bg-slate-800/50 rounded p-2 flex items-center gap-2">
+                          <span className="text-xs text-slate-400 w-24">{webhook.name}:</span>
+                          <code className="flex-1 text-xs text-purple-300 truncate">
+                            {webhook.url}
+                          </code>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyToClipboard(webhook.url, webhook.id)}
+                            className="h-6 w-6 p-0"
+                          >
+                            {copiedUrl === webhook.id ? (
+                              <CheckCircle2 className="w-3 h-3 text-green-400" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-slate-400" />
+                            )}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Webhook Logs */}
+                    {webhookLogs.length > 0 && (
+                      <div className="bg-black/30 rounded p-2">
+                        <div className="text-xs text-slate-400 mb-1">📥 Últimos webhooks:</div>
+                        <div className="space-y-1">
+                          {webhookLogs.slice(-5).map((log, i) => (
+                            <div key={i} className="text-xs text-green-400 font-mono">
+                              {log}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Info Note */}
+                <div className="border-t border-slate-700 pt-3">
+                  <div className="text-xs text-slate-400 space-y-1">
+                    <p>
+                      ✅ <strong className="text-slate-300">El juego funciona 100% local</strong> - Todos los datos se guardan en tu navegador (LocalStorage).
+                    </p>
+                    <p>
+                      ⚡ <strong className="text-slate-300">Webhooks = Opcional</strong> - Solo si quieres integrar con OBS, Streamlabs, o Magic By Loxhias.
+                    </p>
+                    {!isProduction && (
+                      <p className="text-yellow-400">
+                        ⚠️ Webhooks entrantes solo funcionan en producción (Cloudflare). En localhost el juego funciona normalmente sin ellos.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   )
