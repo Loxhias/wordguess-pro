@@ -17,6 +17,8 @@ export const CUSTOM_WORDS_KEY = 'wordguess_custom_words'
  * Get all available words (custom words from localStorage only)
  */
 export function getAllWords(): WordEntry[] {
+  if (typeof window === 'undefined') return []
+  
   const customWordsJson = localStorage.getItem(CUSTOM_WORDS_KEY)
   
   if (!customWordsJson) {
@@ -61,6 +63,8 @@ export function getRandomWord(excludeWord?: string): WordEntry | null {
  * Save custom words to localStorage
  */
 export function saveCustomWords(words: WordEntry[]): void {
+  if (typeof window === 'undefined') return
+  
   const normalized = words.map(w => ({
     word: w.word.toUpperCase().trim(),
     hint: w.hint.trim(),
@@ -75,6 +79,8 @@ export function saveCustomWords(words: WordEntry[]): void {
  * Add a single custom word
  */
 export function addCustomWord(word: string, hint: string, difficulty?: WordEntry['difficulty'], category?: string): void {
+  if (typeof window === 'undefined') return
+  
   const allWords = getAllWords()
   const customWordsJson = localStorage.getItem(CUSTOM_WORDS_KEY)
   const customWords: WordEntry[] = customWordsJson ? JSON.parse(customWordsJson) : []
@@ -98,6 +104,8 @@ export function addCustomWord(word: string, hint: string, difficulty?: WordEntry
  * Delete a custom word
  */
 export function deleteCustomWord(word: string): void {
+  if (typeof window === 'undefined') return
+  
   const customWordsJson = localStorage.getItem(CUSTOM_WORDS_KEY)
   if (!customWordsJson) return
   

@@ -7,15 +7,27 @@ export function useTheme() {
   const [theme, setThemeState] = useState<ThemeStyle>("cyberpunk")
 
   useEffect(() => {
-    const saved = localStorage.getItem("wordguess_theme")
-    if (saved) {
-      setThemeState(saved as ThemeStyle)
+    if (typeof window === 'undefined') return
+    
+    try {
+      const saved = localStorage.getItem("wordguess_theme")
+      if (saved) {
+        setThemeState(saved as ThemeStyle)
+      }
+    } catch (error) {
+      console.error('[Theme] Error loading theme:', error)
     }
   }, [])
 
   const setTheme = (newTheme: ThemeStyle) => {
     setThemeState(newTheme)
-    localStorage.setItem("wordguess_theme", newTheme)
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem("wordguess_theme", newTheme)
+      } catch (error) {
+        console.error('[Theme] Error saving theme:', error)
+      }
+    }
   }
 
   return { theme, setTheme }

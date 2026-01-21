@@ -193,7 +193,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-const PORT = process.env.WEBHOOK_PORT || 3016;
+const PORT = process.env.WEBHOOK_PORT || 3000;
 app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════╗

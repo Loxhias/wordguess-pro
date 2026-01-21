@@ -8,10 +8,16 @@ export function useLanguage() {
   const [language, setLanguage] = useState<Language>("en")
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     const savedConfig = localStorage.getItem("wordguess_config")
     if (savedConfig) {
-      const config = JSON.parse(savedConfig)
-      setLanguage(config.language || "en")
+      try {
+        const config = JSON.parse(savedConfig)
+        setLanguage(config.language || "en")
+      } catch (error) {
+        console.error('[Language] Error loading config:', error)
+      }
     }
   }, [])
 

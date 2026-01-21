@@ -38,7 +38,7 @@ export function useIncomingWebhooks(enabled: boolean = true) {
     if (isProd) {
       console.log('✅ [Polling] Activado en PRODUCCIÓN (' + hostname + ')')
     } else {
-      console.log('✅ [Polling] Activado en LOCAL (localhost:3016)')
+      console.log('✅ [Polling] Activado en LOCAL (localhost:3000)')
       console.log('💡 [Polling] Inicia el servidor local: npm run dev:webhooks')
     }
   }, [])
@@ -47,10 +47,10 @@ export function useIncomingWebhooks(enabled: boolean = true) {
     if (!enabled) return
 
     try {
-      // En local, usar puerto 3016; en producción, usar mismo dominio
+      // En local, usar puerto 3000; en producción, usar mismo dominio
       const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
       const isLocal = hostname === 'localhost' || hostname === '127.0.0.1'
-      const baseUrl = isLocal ? 'http://localhost:3016' : ''
+      const baseUrl = isLocal ? 'http://localhost:3000' : ''
       
       const response = await fetch(`${baseUrl}/api/pending`, { 
         method: 'GET',
@@ -84,7 +84,7 @@ export function useIncomingWebhooks(enabled: boolean = true) {
   const markProcessed = useCallback(async (id: string) => {
     const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
     const isLocal = hostname === 'localhost' || hostname === '127.0.0.1'
-    const baseUrl = isLocal ? 'http://localhost:3016' : ''
+    const baseUrl = isLocal ? 'http://localhost:3000' : ''
 
     try {
       await fetch(`${baseUrl}/api/mark-processed`, {
