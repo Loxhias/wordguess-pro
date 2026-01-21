@@ -24,6 +24,15 @@ export function ThemedLetterTile({
   const [animate, setAnimate] = useState(false)
   const themeConfig = themes[theme]
 
+  // Sincronizar estado interno cuando cambia revealed (para resetear)
+  useEffect(() => {
+    if (!revealed && showLetter) {
+      // Si revealed es false pero showLetter es true, resetear
+      setShowLetter(false)
+      setAnimate(false)
+    }
+  }, [revealed, showLetter])
+
   useEffect(() => {
     if (revealed && !showLetter) {
       setTimeout(() => {

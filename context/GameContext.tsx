@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react'
 import { useMagicWebhook, MagicWebhookHelpers } from '@/hooks/use-magic-webhook'
 import { useIncomingWebhooks } from '@/hooks/use-incoming-webhooks'
 import { getAllWords } from '@/lib/words'
@@ -31,20 +31,11 @@ interface GameContextType {
   updateConfig: (newConfig: Partial<GameConfig>) => void
 }
 
-// ============================================
-// CONTEXT
-// ============================================
-
 const GameContext = createContext<GameContextType | undefined>(undefined)
-
-// ============================================
-// PROVIDER
-// ============================================
 
 const STORAGE_KEYS = {
   PLAYERS: 'wordguess_players',
   CONFIG: 'wordguess_config',
-  GAME_STATE: 'wordguess_game_state',
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
@@ -54,6 +45,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   
   const { sendWebhook, isEnabled: webhookEnabled } = useMagicWebhook()
   const { guesses, events, markProcessed } = useIncomingWebhooks(true)
+  
+  // Track processed webhook IDs to prevent duplicates
+  const processedWebhooks = useRef<Set<string>>(new Set())
 
   // ============================================
   // STATE
@@ -84,17 +78,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     doublePointsDuration: 30,
   })
 
+  // Ref para evitar múltiples revelaciones automáticas
+  const lastRevealTime = useRef<number>(0)
+
   // ============================================
-  // GAME ACTIONS (BEFORE useEffect)
+  // GAME ACTIONS
   // ============================================
 
   const startNewRound = useCallback((word?: string, hint?: string) => {
     if (!word) {
-      console.warn('No word provided for new round')
+      console.warn('[Game] No word provided for new round')
       return
     }
 
     const newWord = word.toUpperCase()
+    console.log('[Game] Starting new round:', newWord)
 
     setGameState({
       currentWord: newWord,
@@ -113,7 +111,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       winnerPoints: 0,
     })
 
-    // 🔥 WEBHOOK: Nueva ronda iniciada
+    // Reset reveal time
+    lastRevealTime.current = 0
+
+    // Webhook: Nueva ronda iniciada
     if (webhookEnabled) {
       MagicWebhookHelpers.roundStart(sendWebhook)(newWord, hint || '', config.roundDuration)
     }
@@ -121,7 +122,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const endRound = useCallback((hasWinner: boolean, winnerName?: string, points?: number) => {
     setGameState((prev) => {
-      // 🔥 WEBHOOK: Ronda finalizada
+      // No terminar si ya está terminada
+      if (prev.isFinished) {
+        console.log('[Game] Round already finished, ignoring endRound call')
+        return prev
+      }
+
+      console.log('[Game] Ending round. Winner:', hasWinner, winnerName, points)
+
+      // Webhook: Ronda finalizada
       if (webhookEnabled) {
         if (hasWinner && winnerName && points) {
           MagicWebhookHelpers.gameWin(sendWebhook)(winnerName, points, prev.currentWord)
@@ -143,24 +152,40 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [webhookEnabled, sendWebhook])
 
   const togglePause = useCallback(() => {
-    setGameState((prev) => ({ ...prev, isRunning: !prev.isRunning }))
+    setGameState((prev) => {
+      console.log('[Game] Toggling pause. Current:', prev.isRunning)
+      return { ...prev, isRunning: !prev.isRunning }
+    })
   }, [])
 
   const revealRandomLetter = useCallback(() => {
     setGameState((prev) => {
-      if (!prev.currentWord) return prev
+      if (!prev.currentWord) {
+        console.log('[Game] Cannot reveal: no current word')
+        return prev
+      }
+
+      if (prev.isFinished) {
+        console.log('[Game] Cannot reveal: round finished')
+        return prev
+      }
 
       const unrevealedIndices = Array.from({ length: prev.currentWord.length }, (_, i) => i).filter(
         (i) => !prev.revealedIndices.includes(i)
       )
 
-      if (unrevealedIndices.length === 0) return prev
+      if (unrevealedIndices.length === 0) {
+        console.log('[Game] All letters already revealed')
+        return prev
+      }
 
       const randomIndex = unrevealedIndices[Math.floor(Math.random() * unrevealedIndices.length)]
       const letter = prev.currentWord[randomIndex]
       const newRevealedIndices = [...prev.revealedIndices, randomIndex]
 
-      // 🔥 WEBHOOK: Letra revelada
+      console.log('[Game] Revealing letter:', letter, 'at position:', randomIndex)
+
+      // Webhook: Letra revelada
       if (webhookEnabled) {
         MagicWebhookHelpers.letterRevealed(sendWebhook)(
           letter,
@@ -221,13 +246,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // ============================================
 
   const activateDoublePoints = useCallback((duration: number = 30) => {
-    setGameState((prev) => ({
-      ...prev,
-      doublePointsActive: true,
-      doublePointsUntil: Date.now() + duration * 1000,
-    }))
+    setGameState((prev) => {
+      console.log('[Game] Activating double points for', duration, 'seconds')
+      return {
+        ...prev,
+        doublePointsActive: true,
+        doublePointsUntil: Date.now() + duration * 1000,
+      }
+    })
 
-    // 🔥 WEBHOOK: Puntos dobles activados
+    // Webhook: Puntos dobles activados
     if (webhookEnabled) {
       MagicWebhookHelpers.doublePoints(sendWebhook)(duration)
     }
@@ -242,17 +270,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // ============================================
-  // EFFECTS (AFTER all useCallback)
+  // EFFECTS
   // ============================================
 
-  // Load from localStorage
+  // Load from localStorage (only once)
   useEffect(() => {
     const savedPlayers = localStorage.getItem(STORAGE_KEYS.PLAYERS)
     if (savedPlayers) {
       try {
         setPlayers(JSON.parse(savedPlayers))
       } catch (error) {
-        console.error('Error loading players:', error)
+        console.error('[Storage] Error loading players:', error)
       }
     }
 
@@ -266,14 +294,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
           doublePointsDuration: parsedConfig.doublePointsDuration || 30,
         })
       } catch (error) {
-        console.error('Error loading config:', error)
+        console.error('[Storage] Error loading config:', error)
       }
     }
   }, [])
 
   // Save players to localStorage
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players))
+    if (players.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players))
+    }
   }, [players])
 
   // Save config to localStorage
@@ -283,121 +313,164 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Timer logic
   useEffect(() => {
-    if (gameState.isRunning && gameState.timeLeft > 0 && !gameState.isFinished) {
-      const timer = setTimeout(() => {
-        setGameState((prev) => {
-          const newTimeLeft = prev.timeLeft - 1
-          
-          if (newTimeLeft === 10 && webhookEnabled) {
-            MagicWebhookHelpers.timerWarning(sendWebhook)(10)
-          }
-          
-          return { ...prev, timeLeft: newTimeLeft }
-        })
-      }, 1000)
-      return () => clearTimeout(timer)
-    } else if (gameState.timeLeft === 0 && !gameState.isFinished && gameState.isActive) {
+    if (!gameState.isRunning || gameState.timeLeft <= 0 || gameState.isFinished) {
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setGameState((prev) => {
+        const newTimeLeft = prev.timeLeft - 1
+        
+        // Timer warning at 10 seconds
+        if (newTimeLeft === 10 && webhookEnabled) {
+          MagicWebhookHelpers.timerWarning(sendWebhook)(10)
+        }
+        
+        return { ...prev, timeLeft: newTimeLeft }
+      })
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [gameState.isRunning, gameState.timeLeft, gameState.isFinished, webhookEnabled, sendWebhook])
+
+  // End round when time reaches 0
+  useEffect(() => {
+    if (gameState.timeLeft === 0 && !gameState.isFinished && gameState.isActive) {
+      console.log('[Game] Time is up, ending round')
       endRound(false)
     }
-  }, [gameState.isRunning, gameState.timeLeft, gameState.isFinished, gameState.isActive, webhookEnabled, sendWebhook, endRound])
+  }, [gameState.timeLeft, gameState.isFinished, gameState.isActive, endRound])
 
   // Auto-reveal logic
   useEffect(() => {
-    if (gameState.isRunning && gameState.currentWord && !gameState.isFinished) {
-      const elapsed = config.roundDuration - gameState.timeLeft
-      const shouldRevealCount = Math.floor(elapsed / config.revealInterval)
-      const currentRevealCount = gameState.revealedIndices.length
-
-      if (shouldRevealCount > currentRevealCount && currentRevealCount < gameState.currentWord.length) {
-        revealRandomLetter()
-      }
+    if (!gameState.isRunning || !gameState.currentWord || gameState.isFinished) {
+      return
     }
-  }, [gameState.timeLeft, gameState.isRunning, gameState.currentWord, gameState.isFinished, config.roundDuration, config.revealInterval, revealRandomLetter])
+
+    const elapsed = config.roundDuration - gameState.timeLeft
+    const shouldRevealCount = Math.floor(elapsed / config.revealInterval)
+    const currentRevealCount = gameState.revealedIndices.length
+
+    // Solo revelar si:
+    // 1. Debería revelar más letras según el tiempo
+    // 2. Aún hay letras por revelar
+    // 3. No ha revelado en el último segundo (evitar múltiples revelaciones)
+    if (shouldRevealCount > currentRevealCount && 
+        currentRevealCount < gameState.currentWord.length &&
+        Date.now() - lastRevealTime.current > 1000) {
+      lastRevealTime.current = Date.now()
+      revealRandomLetter()
+    }
+  }, [gameState.isRunning, gameState.currentWord, gameState.isFinished, gameState.timeLeft, gameState.revealedIndices.length, config.roundDuration, config.revealInterval, revealRandomLetter])
 
   // Double points check
   useEffect(() => {
-    if (gameState.doublePointsActive && Date.now() > gameState.doublePointsUntil) {
-      setGameState((prev) => ({ ...prev, doublePointsActive: false }))
-    }
+    if (!gameState.doublePointsActive) return
+
+    const checkInterval = setInterval(() => {
+      if (Date.now() > gameState.doublePointsUntil) {
+        console.log('[Game] Double points expired')
+        setGameState((prev) => ({ ...prev, doublePointsActive: false }))
+      }
+    }, 1000)
+
+    return () => clearInterval(checkInterval)
   }, [gameState.doublePointsActive, gameState.doublePointsUntil])
 
-  // Process incoming webhooks (guesses)
+  // Process incoming webhooks (guesses) - SOLO UNA VEZ POR GUESS
   useEffect(() => {
     if (guesses.length === 0) return
 
     guesses.forEach((guess) => {
+      // Skip if already processed
+      if (processedWebhooks.current.has(guess.id)) {
+        return
+      }
+
+      console.log('[Webhook] Processing guess:', guess.id, guess.word, 'from', guess.user)
+      processedWebhooks.current.add(guess.id)
+
       const normalizedGuess = guess.word.toUpperCase().trim()
       const currentWord = gameState.currentWord.toUpperCase().trim()
 
-      if (normalizedGuess === currentWord && gameState.isRunning) {
-        // ¡Palabra correcta!
+      if (normalizedGuess === currentWord && gameState.isRunning && !gameState.isFinished) {
+        console.log('[Webhook] ✅ Correct guess!')
         const points = gameState.doublePointsActive ? 200 : 100
         addPoints(guess.user, points)
         endRound(true, guess.user, points)
+      } else {
+        console.log('[Webhook] ❌ Wrong guess or game not active')
       }
 
-      // Mark as processed
+      // Mark as processed in backend
       markProcessed(guess.id)
     })
-  }, [guesses, gameState.currentWord, gameState.isRunning, gameState.doublePointsActive, addPoints, endRound, markProcessed])
+  }, [guesses])
 
-  // Process incoming webhooks (events)
+  // Process incoming webhooks (events) - SOLO UNA VEZ POR EVENTO
   useEffect(() => {
     if (events.length === 0) return
 
-    console.log('🔔 [Webhook] Eventos recibidos:', events)
-
     events.forEach((event) => {
-      console.log('🎯 [Webhook] Procesando evento:', event.event, 'Usuario:', event.user)
+      // Skip if already processed
+      if (processedWebhooks.current.has(event.id)) {
+        return
+      }
+
+      console.log('[Webhook] Processing event:', event.id, event.event, 'from', event.user)
+      processedWebhooks.current.add(event.id)
 
       switch (event.event) {
         case 'reveal_letter':
-          // Permitir revelar incluso si no hay ronda activa (iniciará una si es necesario)
-          if (gameState.isRunning && gameState.currentWord) {
-            console.log('✅ [Webhook] Revelando letra...')
+          if (gameState.isRunning && gameState.currentWord && !gameState.isFinished) {
+            console.log('[Webhook] ✅ Revealing letter')
             revealRandomLetter()
-          } else if (!gameState.isRunning) {
-            console.warn('⚠️ [Webhook] No hay ronda activa. Usa /api/event?event=nueva_ronda primero')
-            // Auto-iniciar ronda si hay palabras
-            const allWords = getAllWords()
-            if (allWords.length > 0) {
-              const randomWord = allWords[Math.floor(Math.random() * allWords.length)]
-              console.log('🚀 [Webhook] Auto-iniciando ronda con palabra:', randomWord.word)
-              startNewRound(randomWord.word, randomWord.hint)
-              // Revelar después de 500ms
-              setTimeout(() => revealRandomLetter(), 500)
-            } else {
-              console.error('❌ [Webhook] No hay palabras configuradas en /config')
-            }
+          } else {
+            console.warn('[Webhook] ⚠️ Cannot reveal: game not active')
           }
           break
+
         case 'double_points':
-          if (gameState.isRunning) {
+          if (gameState.isRunning && !gameState.isFinished) {
             const duration = event.duration || config.doublePointsDuration
-            console.log('✅ [Webhook] Activando puntos dobles por', duration, 'segundos')
+            console.log('[Webhook] ✅ Activating double points')
             activateDoublePoints(duration)
           } else {
-            console.warn('⚠️ [Webhook] No hay ronda activa para activar puntos dobles')
+            console.warn('[Webhook] ⚠️ Cannot activate double points: game not active')
           }
           break
+
         case 'nueva_ronda':
           const allWords = getAllWords()
           if (allWords.length > 0) {
             const randomWord = allWords[Math.floor(Math.random() * allWords.length)]
-            console.log('✅ [Webhook] Iniciando nueva ronda con:', randomWord.word)
+            console.log('[Webhook] ✅ Starting new round')
             startNewRound(randomWord.word, randomWord.hint)
           } else {
-            console.error('❌ [Webhook] No hay palabras configuradas en /config')
+            console.error('[Webhook] ❌ No words configured')
           }
           break
+
         default:
-          console.warn('⚠️ [Webhook] Evento desconocido:', event.event)
+          console.warn('[Webhook] ⚠️ Unknown event:', event.event)
       }
 
-      // Mark as processed
+      // Mark as processed in backend
       markProcessed(event.id)
     })
-  }, [events, gameState.isRunning, gameState.currentWord, config.doublePointsDuration, revealRandomLetter, activateDoublePoints, startNewRound, markProcessed])
+  }, [events])
+
+  // Cleanup processed webhooks periodically (keep only last 100)
+  useEffect(() => {
+    const cleanup = setInterval(() => {
+      if (processedWebhooks.current.size > 100) {
+        const arr = Array.from(processedWebhooks.current)
+        processedWebhooks.current = new Set(arr.slice(-100))
+      }
+    }, 60000) // Every minute
+
+    return () => clearInterval(cleanup)
+  }, [])
 
   // ============================================
   // CONTEXT VALUE
@@ -421,10 +494,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>
 }
-
-// ============================================
-// HOOK
-// ============================================
 
 export function useGame() {
   const context = useContext(GameContext)

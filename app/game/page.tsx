@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft, Play, Pause, Eye, SkipForward, Lightbulb, Bug, ChevronDown, ChevronUp, Copy, CheckCircle2 } from "lucide-react"
 import { GameProvider, useGame } from "@/context/GameContext"
@@ -34,29 +34,50 @@ function GameContent() {
     setIsProduction(isProd)
   }, [])
 
+  // Track para evitar logs duplicados
+  const processedLogIds = React.useRef<Set<string>>(new Set())
+
   useEffect(() => {
-    if (events.length > 0) {
-      setWebhookLogs(prev => [
-        ...prev.slice(-4), // Mantener solo los últimos 5
-        `${new Date().toLocaleTimeString()} - ${events.length} evento(s): ${events.map(e => e.event).join(', ')}`
-      ])
-    }
+    events.forEach(event => {
+      if (!processedLogIds.current.has(event.id)) {
+        processedLogIds.current.add(event.id)
+        setWebhookLogs(prev => [
+          ...prev.slice(-4),
+          `${new Date().toLocaleTimeString()} - Evento: ${event.event} (${event.user})`
+        ])
+      }
+    })
   }, [events])
 
   useEffect(() => {
-    if (guesses.length > 0) {
-      setWebhookLogs(prev => [
-        ...prev.slice(-4),
-        `${new Date().toLocaleTimeString()} - ${guesses.length} intento(s) de adivinanza`
-      ])
-    }
+    guesses.forEach(guess => {
+      if (!processedLogIds.current.has(guess.id)) {
+        processedLogIds.current.add(guess.id)
+        setWebhookLogs(prev => [
+          ...prev.slice(-4),
+          `${new Date().toLocaleTimeString()} - Intento: ${guess.word} (${guess.user})`
+        ])
+      }
+    })
   }, [guesses])
 
+  // Reset hint cuando cambia la palabra
   useEffect(() => {
-    if (gameState.isFinished && !modalOpen) {
+    setHintRevealed(false)
+  }, [gameState.currentWord])
+
+  // Controlar apertura del modal SOLO UNA VEZ cuando termina la ronda
+  const hasShownModal = React.useRef(false)
+  
+  useEffect(() => {
+    if (gameState.isFinished && !hasShownModal.current) {
+      hasShownModal.current = true
       setTimeout(() => setModalOpen(true), 1000)
+    } else if (!gameState.isFinished) {
+      // Resetear cuando inicia nueva ronda
+      hasShownModal.current = false
     }
-  }, [gameState.isFinished, modalOpen])
+  }, [gameState.isFinished])
 
   const handleStartRound = () => {
     const word = getRandomWord(gameState.currentWord)
@@ -64,9 +85,16 @@ function GameContent() {
       alert(t('addWordsFirst'))
       return
     }
-    startNewRound(word.word, word.hint)
+    
+    console.log('[UI] Starting new round:', word.word)
+    
+    // Cerrar modal primero
     setModalOpen(false)
-    setHintRevealed(false)
+    
+    // Pequeño delay para asegurar que el modal se cierra antes de resetear el estado
+    setTimeout(() => {
+      startNewRound(word.word, word.hint)
+    }, 100)
   }
 
   const themeColors = {
@@ -130,7 +158,7 @@ function GameContent() {
                   <div className="flex flex-wrap justify-center gap-2 md:gap-3">
                     {gameState.currentWord.split('').map((letter, i) => (
                       <ThemedLetterTile
-                        key={i}
+                        key={`${gameState.currentWord}-${i}-${gameState.startTime}`}
                         letter={letter}
                         revealed={gameState.revealedIndices.includes(i) || gameState.isFinished}
                         isCorrectGuess={gameState.isFinished && gameState.winner !== null}
