@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react'
 import { useMagicWebhook, MagicWebhookHelpers } from '@/hooks/use-magic-webhook'
 import { useIncomingWebhooks } from '@/hooks/use-incoming-webhooks'
+import { usePostMessage } from '@/hooks/use-post-message'
 import { getAllWords } from '@/lib/words'
 import type { Player, Winner, GameState, GameConfig } from '@/types/game'
 
@@ -471,6 +472,56 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     return () => clearInterval(cleanup)
   }, [])
+
+  // ============================================
+  // POST MESSAGE (Magic By Loxhias)
+  // ============================================
+
+  usePostMessage({
+    onRevealLetter: () => {
+      if (gameState.isRunning && gameState.currentWord && !gameState.isFinished) {
+        console.log('[PostMessage] ✅ Revealing letter')
+        revealRandomLetter()
+      } else {
+        console.warn('[PostMessage] ⚠️ Cannot reveal: game not active')
+      }
+    },
+    onNewRound: () => {
+      const allWords = getAllWords()
+      if (allWords.length > 0) {
+        const randomWord = allWords[Math.floor(Math.random() * allWords.length)]
+        console.log('[PostMessage] ✅ Starting new round with:', randomWord.word)
+        startNewRound(randomWord.word, randomWord.hint)
+      } else {
+        console.error('[PostMessage] ❌ No words configured. Add words in /config')
+      }
+    },
+    onDoublePoints: (duration) => {
+      if (gameState.isRunning && !gameState.isFinished) {
+        console.log('[PostMessage] ✅ Activating double points')
+        activateDoublePoints(duration)
+      } else {
+        console.warn('[PostMessage] ⚠️ Cannot activate double points: game not active')
+      }
+    },
+    onGuess: (user, word) => {
+      const normalizedGuess = word.toUpperCase().trim()
+      const currentWord = gameState.currentWord.toUpperCase().trim()
+
+      if (normalizedGuess === currentWord && gameState.isRunning && !gameState.isFinished) {
+        console.log('[PostMessage] ✅ Correct guess!')
+        const points = gameState.doublePointsActive ? 200 : 100
+        addPoints(user, points)
+        endRound(true, user, points)
+      } else if (!gameState.isRunning) {
+        console.warn('[PostMessage] ⚠️ Game not active')
+      } else if (gameState.isFinished) {
+        console.warn('[PostMessage] ⚠️ Round already finished')
+      } else {
+        console.log('[PostMessage] ❌ Wrong guess:', normalizedGuess, '!=', currentWord)
+      }
+    }
+  })
 
   // ============================================
   // CONTEXT VALUE
