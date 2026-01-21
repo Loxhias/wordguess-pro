@@ -30,22 +30,29 @@ export function useIncomingWebhooks(enabled: boolean = true) {
   const [isProduction, setIsProduction] = useState(false)
 
   useEffect(() => {
-    // Only enable in production (Cloudflare) where Functions are available
-    const isProd = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    // Detectar entorno: producción (Cloudflare) o local (localhost)
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+    const isProd = hostname !== 'localhost' && hostname !== '127.0.0.1'
     setIsProduction(isProd)
     
     if (isProd) {
-      console.log('✅ [Polling] Activado en producción (' + window.location.hostname + ')')
+      console.log('✅ [Polling] Activado en PRODUCCIÓN (' + hostname + ')')
     } else {
-      console.log('⏸️ [Polling] Desactivado en localhost (solo funciona en Cloudflare)')
+      console.log('✅ [Polling] Activado en LOCAL (localhost:3016)')
+      console.log('💡 [Polling] Inicia el servidor local: npm run dev:webhooks')
     }
   }, [])
 
   const fetchPending = useCallback(async () => {
-    if (!enabled || !isProduction) return
+    if (!enabled) return
 
     try {
-      const response = await fetch('/api/pending', { 
+      // En local, usar puerto 3016; en producción, usar mismo dominio
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+      const isLocal = hostname === 'localhost' || hostname === '127.0.0.1'
+      const baseUrl = isLocal ? 'http://localhost:3016' : ''
+      
+      const response = await fetch(`${baseUrl}/api/pending`, { 
         method: 'GET',
         cache: 'no-store'
       })
@@ -57,6 +64,7 @@ export function useIncomingWebhooks(enabled: boolean = true) {
           console.log('📥 [Polling] Webhooks recibidos:', {
             guesses: data.guesses?.length || 0,
             events: data.events?.length || 0,
+            mode: isLocal ? 'LOCAL' : 'PRODUCCIÓN',
             data
           })
         }
@@ -65,39 +73,39 @@ export function useIncomingWebhooks(enabled: boolean = true) {
         setEvents(data.events || [])
       }
     } catch (error) {
-      // Silently fail in development
-      if (isProduction) {
-        console.error('Error fetching pending webhooks:', error)
+      // Solo mostrar error si está activo
+      if (enabled) {
+        console.error('⚠️ [Polling] Error:', error)
+        console.log('💡 Asegúrate de que el servidor esté corriendo: npm run dev:webhooks')
       }
     }
-  }, [enabled, isProduction])
+  }, [enabled])
 
   const markProcessed = useCallback(async (id: string) => {
-    if (!isProduction) return
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1'
+    const baseUrl = isLocal ? 'http://localhost:3016' : ''
 
     try {
-      await fetch('/api/mark-processed', {
+      await fetch(`${baseUrl}/api/mark-processed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: id }),
         cache: 'no-store'
       })
     } catch (error) {
-      // Silently fail in development
-      if (isProduction) {
-        console.error('Error marking as processed:', error)
-      }
+      console.error('Error marking as processed:', error)
     }
-  }, [isProduction])
+  }, [])
 
-  // Polling every 1 second (only in production)
+  // Polling every 1 second (local y producción)
   useEffect(() => {
-    if (!enabled || !isProduction) return
+    if (!enabled) return
 
     fetchPending()
     const interval = setInterval(fetchPending, 1000)
     return () => clearInterval(interval)
-  }, [enabled, isProduction, fetchPending])
+  }, [enabled, fetchPending])
 
   return {
     guesses,
